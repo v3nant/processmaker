@@ -121,82 +121,15 @@ jobs:
 
       - name: Generate an SBOM
         if: steps.claim.outputs.claimed == 'true' && steps.resolve.outputs.lockfile != ''
+        env:
+          npm_config_ignore_scripts: 'true'
+          npm_config_audit: 'false'
+          npm_config_fund: 'false'
+          npm_config_legacy_peer_deps: 'true'
         run: |
-          CDXGEN_HOME=$(mktemp -d)
-          (cd "$CDXGEN_HOME" && npm install --no-save --no-audit --no-fund --ignore-scripts --legacy-peer-deps @cyclonedx/cdxgen@12.5.1)
-          cat > "$CDXGEN_HOME/generate-sbom.mjs" <<'NODE_SCRIPT'
-          import { writeFileSync } from 'node:fs'
-          import { createBom } from '@cyclonedx/cdxgen'
-          import { postProcess } from '@cyclonedx/cdxgen/stages/postgen/postgen'
-
-          const options = {
-            $0: 'cdxgen',
-            _: [],
-            'auto-compositions': true,
-            autoCompositions: true,
-            'data-flow-slices-file': 'data-flow.slices.json',
-            dataFlowSlicesFile: 'data-flow.slices.json',
-            deep: false,
-            'deps-slices-file': 'deps.slices.json',
-            depsSlicesFile: 'deps.slices.json',
-            evidence: false,
-            'export-proto': false,
-            exportProto: false,
-            'fail-on-error': false,
-            failOnError: false,
-            'include-crypto': false,
-            'include-formulation': false,
-            includeCrypto: false,
-            includeFormulation: false,
-            'no-install-deps': true,
-            noInstallDeps: true,
-            'min-confidence': 0.1,
-            minConfidence: 0.1,
-            multiProject: true,
-            'no-banner': false,
-            noBabel: false,
-            noBanner: false,
-            o: 'bom.json',
-            output: 'bom.json',
-            outputFormat: 'json',
-            author: ['HeroDevs, Inc.'],
-            profile: 'generic',
-            project: undefined,
-            'project-version': '',
-            projectVersion: '',
-            'proto-bin-file': 'bom.cdx',
-            protoBinFile: 'bom.cdx',
-            r: false,
-            'reachables-slices-file': 'reachables.slices.json',
-            reachablesSlicesFile: 'reachables.slices.json',
-            recurse: false,
-            requiredOnly: false,
-            'semantics-slices-file': 'semantics.slices.json',
-            semanticsSlicesFile: 'semantics.slices.json',
-            'skip-dt-tls-check': true,
-            skipDtTlsCheck: true,
-            'spec-version': 1.6,
-            specVersion: 1.6,
-            tools: [{ name: 'herodevs-evergreen-executor', publisher: 'HeroDevs, Inc.', version: 'interim' }],
-            'usages-slices-file': 'usages.slices.json',
-            usagesSlicesFile: 'usages.slices.json',
-            validate: true
-          }
-
-          const directory = process.cwd()
-          const sbom = await createBom(directory, options)
-          if (!sbom) {
-            console.error('SBOM not generated')
-            process.exit(1)
-          }
-          const postProcessed = postProcess(sbom, options, directory)
-          if (!postProcessed) {
-            console.error('SBOM not generated')
-            process.exit(1)
-          }
-          writeFileSync('sbom.json', JSON.stringify(postProcessed.bomJson))
-          NODE_SCRIPT
-          node "$CDXGEN_HOME/generate-sbom.mjs"
+          npx --yes --package=@herodevs/cli@2.0.10 -- hd scan sbom --dir . --output sbom.json
+          jq -c . sbom.json > sbom.json.compact
+          mv sbom.json.compact sbom.json
 
       - name: Submit the SBOM
         if: steps.claim.outputs.claimed == 'true' && steps.resolve.outputs.lockfile != ''
